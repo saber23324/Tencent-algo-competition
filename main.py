@@ -10,10 +10,26 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
+import torch.nn.functional as F
 from dataset import MyDataset
 from model import BaselineModel
 
-
+"""
+    def __init__(
+        self,
+        input_dim: int,
+        hidden_channels: list,
+        latent_dim: int,
+        num_codebooks: int,
+        codebook_size: list,
+        shared_codebook: bool,
+        kmeans_method,
+        kmeans_iters,
+        distances_method,
+        loss_beta: float,
+        device: str,
+    ):
+"""
 def get_args():
     parser = argparse.ArgumentParser()
 
@@ -35,13 +51,14 @@ def get_args():
     parser.add_argument('--norm_first', action='store_true')
 
     # MMemb Feature ID
-    parser.add_argument('--mm_emb_id', nargs='+', default=['81'], type=str, choices=[str(s) for s in range(81, 87)])
+    parser.add_argument('--mm_emb_id', nargs='+', default=['81','82'], type=str, choices=[str(s) for s in range(81, 87)])
 
     args = parser.parse_args()
 
     return args
 
 
+    
 if __name__ == '__main__':
     Path(os.environ.get('TRAIN_LOG_PATH')).mkdir(parents=True, exist_ok=True)
     Path(os.environ.get('TRAIN_TF_EVENTS_PATH')).mkdir(parents=True, exist_ok=True)
@@ -60,6 +77,10 @@ if __name__ == '__main__':
         valid_dataset, batch_size=args.batch_size, shuffle=False, num_workers=0, collate_fn=dataset.collate_fn
     )
     usernum, itemnum = dataset.usernum, dataset.itemnum
+    # 查看dict多模态
+    mm_emb_dict = dataset.mm_emb_dict
+    print("mm_emb_dict len:{}", len(mm_emb_dict))
+    
     feat_statistics, feat_types = dataset.feat_statistics, dataset.feature_types
 
     model = BaselineModel(usernum, itemnum, feat_statistics, feat_types, args).to(args.device)
@@ -104,10 +125,11 @@ if __name__ == '__main__':
             break
         for step, batch in tqdm(enumerate(train_loader), total=len(train_loader)):
             seq, pos, neg, token_type, next_token_type, next_action_type, seq_feat, pos_feat, neg_feat = batch
+            print('seq_feat shape:{seq_feat.shape}')
             seq = seq.to(args.device)
             pos = pos.to(args.device)
             neg = neg.to(args.device)
-            pos_logits, neg_logits = model(
+            pos_logits, neg_logits , loss = model(
                 seq, pos, neg, token_type, next_token_type, next_action_type, seq_feat, pos_feat, neg_feat
             )
             pos_labels, neg_labels = torch.ones(pos_logits.shape, device=args.device), torch.zeros(
@@ -115,7 +137,7 @@ if __name__ == '__main__':
             )
             optimizer.zero_grad()
             indices = np.where(next_token_type == 1)
-            loss = bce_criterion(pos_logits[indices], pos_labels[indices])
+            loss += bce_criterion(pos_logits[indices], pos_labels[indices])
             loss += bce_criterion(neg_logits[indices], neg_labels[indices])
 
             log_json = json.dumps(

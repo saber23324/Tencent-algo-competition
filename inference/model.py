@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from tqdm import tqdm
 
 from dataset import save_emb
-from model_rqvae import RQVAE
+
 
 class FlashMultiHeadAttention(torch.nn.Module):
     def __init__(self, hidden_units, num_heads, dropout_rate):
@@ -102,22 +102,6 @@ class BaselineModel(torch.nn.Module):
         itemdnn: 物品特征拼接后经过的全连接层
     """
 
-    """
-    def __init__(
-        self,
-        input_dim: int,
-        hidden_channels: list,
-        latent_dim: int,
-        num_codebooks: int,
-        codebook_size: list,
-        shared_codebook: bool,
-        kmeans_method,
-        kmeans_iters,
-        distances_method,
-        loss_beta: float,
-        device: str,
-    ):
-    """
     def __init__(self, user_num, item_num, feat_statistics, feat_types, args):  #
         super(BaselineModel, self).__init__()
 
@@ -135,22 +119,6 @@ class BaselineModel(torch.nn.Module):
         self.emb_dropout = torch.nn.Dropout(p=args.dropout_rate)
         self.sparse_emb = torch.nn.ModuleDict()
         self.emb_transform = torch.nn.ModuleDict()
-        #新增
-        '''
-        self.RQVAE_model = RQVAE(
-            input_dim=args.hidden_units,
-            hidden_channels=args.hidden_units,
-            latent_dim=args.latent_dim,
-            num_codebooks=args.num_codebooks,
-            codebook_size=args.codebook_size,
-            shared_codebook=args.shared_codebook,
-            kmeans_method=args.kmeans_method,
-            kmeans_iters=args.kmeans_iters,
-            distances_method=args.distances_method,
-            loss_beta=args.loss_beta,
-            device=args.device,
-        )
-        '''
 
         self.attention_layernorms = torch.nn.ModuleList()  # to be Q for self-attention
         self.attention_layers = torch.nn.ModuleList()
@@ -379,34 +347,6 @@ class BaselineModel(torch.nn.Module):
         log_feats = self.last_layernorm(seqs)
 
         return log_feats
-    def compute_infonce_loss(self, seq_embs, pos_embs, neg_embs, loss_mask):
-        """
-        计算InfoNCE损失
-
-        Args:
-            pos_logits: 正样本logits，形状为 [batch_size, maxlen]
-            neg_logits: 负样本logits，形状为 [batch_size, maxlen]
-            mask: 掩码，1表示item token，2表示user token
-
-        Returns:
-            loss: InfoNCE损失值
-        """
-        hidden_size = neg_embs.size(-1)
-        seq_embs = seq_embs / seq_embs.norm(dim=-1, keepdim=True)
-        pos_embs = pos_embs / pos_embs.norm(dim=-1, keepdim=True)
-        pos_logits = F.cosine_similarity(seq_embs, pos_embs, dim=-1).unsqueeze(-1)
-        # writer.add_scalar("Model/nce_pos_logits", pos_logits.mean().item())
-        neg_embs = neg_embs / neg_embs.norm(dim=-1, keepdim=True)
-
-        neg_embedding_all = neg_embs.reshape(-1, hidden_size)
-        neg_logits = torch.matmul(seq_embs, neg_embedding_all.transpose(-1, -2))
-        # writer.add_scalar("Model/nce_neg_logits", neg_logits.mean().item())
-        logits = torch.cat([pos_logits, neg_logits], dim=-1)
-        logits = logits[loss_mask.bool()] / self.temp
-        labels = torch.zeros(logits.size(0), device=logits.device, dtype=torch.int64)
-        loss = F.cross_entropy(logits, labels)
-        return loss
-
 
     def forward(
         self, user_item, pos_seqs, neg_seqs, mask, next_mask, next_action_type, seq_feature, pos_feature, neg_feature
@@ -434,14 +374,13 @@ class BaselineModel(torch.nn.Module):
 
         pos_embs = self.feat2emb(pos_seqs, pos_feature, include_user=False)
         neg_embs = self.feat2emb(neg_seqs, neg_feature, include_user=False)
-        seq_embs = self.feat2emb(user_item, seq_feature, include_user=True)
-        
+
         pos_logits = (log_feats * pos_embs).sum(dim=-1)
         neg_logits = (log_feats * neg_embs).sum(dim=-1)
         pos_logits = pos_logits * loss_mask
         neg_logits = neg_logits * loss_mask
-        compute_infonce_loss = self.compute_infonce_loss(seq_embs, pos_embs, neg_embs, loss_mask)
-        return pos_logits, neg_logits , compute_infonce_loss
+
+        return pos_logits, neg_logits
 
     def predict(self, log_seqs, seq_feature, mask):
         """
