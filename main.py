@@ -51,7 +51,7 @@ def get_args():
     parser.add_argument('--norm_first', action='store_true')
 
     # MMemb Feature ID
-    parser.add_argument('--mm_emb_id', nargs='+', default=['81','82'], type=str, choices=[str(s) for s in range(81, 87)])
+    parser.add_argument('--mm_emb_id', nargs='+', default=['82'], type=str, choices=[str(s) for s in range(81, 87)])
 
     args = parser.parse_args()
 

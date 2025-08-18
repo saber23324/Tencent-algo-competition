@@ -303,8 +303,8 @@ class MyTestDataset(MyDataset):
         super().__init__(data_dir, args)
 
     def _load_data_and_offsets(self):
-        self.data_file = open(self.data_dir / "predict_seq.jsonl", 'rb')
-        with open(Path(self.data_dir, 'predict_seq_offsets.pkl'), 'rb') as f:
+        self.data_file = open(self.data_dir / "seq.jsonl", 'rb')
+        with open(Path(self.data_dir, 'seq_offsets.pkl'), 'rb') as f:
             self.seq_offsets = pickle.load(f)
 
     def _process_cold_start_feat(self, feat):
@@ -394,7 +394,7 @@ class MyTestDataset(MyDataset):
         Returns:
             len(self.seq_offsets): 用户数量
         """
-        with open(Path(self.data_dir, 'predict_seq_offsets.pkl'), 'rb') as f:
+        with open(Path(self.data_dir, 'seq_offsets.pkl'), 'rb') as f:
             temp = pickle.load(f)
         return len(temp)
 

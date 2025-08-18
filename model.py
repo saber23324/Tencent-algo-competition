@@ -136,6 +136,7 @@ class BaselineModel(torch.nn.Module):
         self.sparse_emb = torch.nn.ModuleDict()
         self.emb_transform = torch.nn.ModuleDict()
         #新增
+        self.temp = 1
         '''
         self.RQVAE_model = RQVAE(
             input_dim=args.hidden_units,
@@ -434,7 +435,9 @@ class BaselineModel(torch.nn.Module):
 
         pos_embs = self.feat2emb(pos_seqs, pos_feature, include_user=False)
         neg_embs = self.feat2emb(neg_seqs, neg_feature, include_user=False)
-        seq_embs = self.feat2emb(user_item, seq_feature, include_user=True)
+        # seq_embs = self.feat2emb(user_item, seq_feature, include_user=False)
+        seq_embs = self.feat2emb(user_item, seq_feature, mask=mask, include_user=True)
+
         
         pos_logits = (log_feats * pos_embs).sum(dim=-1)
         neg_logits = (log_feats * neg_embs).sum(dim=-1)
